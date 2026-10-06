@@ -1,0 +1,402 @@
+<title>Science Days Kostenrechner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  /* Layout: one narrow column — Eingaben oben, Ergebnis als Beleg darunter, Busse als Sitzplan-Raster */
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --ink: #17233a;
+    --muted: #5a6680;
+    --line: #d5dbe7;
+    --accent: #1d4fa3;
+    --accent-soft: #e2eafa;
+    --bus: #f2b705;
+    --bus-ink: #2b2100;
+    --seat-empty: #dfe4ee;
+    --warn-bg: #fff4d6;
+    --warn-ink: #6b4a00;
+    --ok-ink: #1d6b45;
+    --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151f; --surface: #182031; --ink: #e8ecf5; --muted: #9aa5bd; --line: #2b3650;
+      --accent: #8fb3ff; --accent-soft: #1f2d4a; --bus: #f2b705; --bus-ink: #2b2100;
+      --seat-empty: #2a3449; --warn-bg: #3a2e0c; --warn-ink: #ffd877; --ok-ink: #7fd6a8;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151f; --surface: #182031; --ink: #e8ecf5; --muted: #9aa5bd; --line: #2b3650;
+    --accent: #8fb3ff; --accent-soft: #1f2d4a; --bus: #f2b705; --bus-ink: #2b2100;
+    --seat-empty: #2a3449; --warn-bg: #3a2e0c; --warn-ink: #ffd877; --ok-ink: #7fd6a8;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 2rem 3rem;
+    display: grid;
+    gap: 1.5rem;
+  }
+  header { display: grid; gap: .35rem; }
+  .eyebrow {
+    font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); font-weight: 700;
+  }
+  h1 {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: clamp(1.9rem, 6vw, 2.6rem); line-height: 1.05; margin: 0;
+    text-wrap: balance;
+  }
+  .lede { margin: 0; color: var(--muted); max-width: 60ch; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.25rem;
+    display: grid;
+    gap: 1rem;
+  }
+  h2 {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.15rem;
+    margin: 0; text-wrap: balance;
+  }
+
+  .inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  @media (max-width: 560px) { .inputs { grid-template-columns: 1fr 1fr; } .inputs .field:last-child { grid-column: 1 / -1; } }
+  .field { display: grid; gap: .3rem; min-width: 0; align-content: start; }
+  .field label { font-weight: 700; font-size: .92rem; }
+  .field .hint { font-size: .8rem; color: var(--muted); min-height: 1.2em; }
+  .hint button {
+    font: inherit; color: var(--accent); background: none; border: 0; padding: 0;
+    text-decoration: underline; cursor: pointer;
+  }
+  input[type="number"] {
+    width: 100%;
+    font-family: var(--font-data); font-weight: 600; font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+    padding: .55rem .7rem;
+    border: 1.5px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink);
+  }
+  input[type="number"]:focus-visible, button:focus-visible, summary:focus-visible, input[type="checkbox"]:focus-visible {
+    outline: 3px solid var(--accent); outline-offset: 2px;
+  }
+  .toggle { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; }
+  .toggle input { width: 1.15rem; height: 1.15rem; margin-top: .15rem; accent-color: var(--accent); flex: none; }
+
+  details { border-top: 1px solid var(--line); padding-top: .9rem; }
+  summary { cursor: pointer; font-weight: 700; font-size: .92rem; color: var(--accent); }
+  .prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .prices input[type="number"] { font-size: 1.05rem; }
+
+  /* Ergebnis */
+  .result {
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.25rem;
+    display: grid; gap: 1.1rem;
+  }
+  .headline { display: grid; gap: .15rem; }
+  .headline .label { font-size: .85rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .big {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: clamp(2.8rem, 12vw, 4.2rem); line-height: 1; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .headline .sub { color: var(--muted); font-size: .92rem; }
+
+  .warn {
+    background: var(--warn-bg); color: var(--warn-ink);
+    border-radius: 10px; padding: .7rem .9rem; font-size: .92rem;
+  }
+  .tip { color: var(--ok-ink); font-size: .92rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  td { padding: .45rem 0; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+  td.num { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: .75rem; }
+  td .calc { display: block; font-size: .8rem; color: var(--muted); }
+  tr.total td { border-bottom: 0; font-weight: 700; padding-top: .6rem; }
+
+  .collect {
+    display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: baseline;
+    border-top: 1px dashed var(--line); padding-top: .9rem; font-size: .92rem;
+  }
+  .collect strong { font-family: var(--font-data); font-size: 1.1rem; }
+  .collect .muted { color: var(--muted); }
+
+  /* Sitzplan */
+  .buses { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
+  .bus { display: grid; gap: .4rem; min-width: 0; }
+  .bus-head { display: flex; justify-content: space-between; font-size: .85rem; gap: .5rem; }
+  .bus-head b { font-family: var(--font-display); }
+  .bus-head span { color: var(--muted); font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+  .seats {
+    display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px;
+    padding: 6px; border: 2px solid var(--bus); border-radius: 10px 10px 6px 6px;
+  }
+  .seat { aspect-ratio: 1; border-radius: 3px; background: var(--seat-empty); max-width: 100%; }
+  .seat.s { background: var(--bus); }
+  .seat.t { background: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .8rem; color: var(--muted); }
+  .legend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
+
+  footer { font-size: .8rem; color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) {
+    .seat { transition: background-color .2s ease; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Klassenfahrt · Kostenaufteilung</span>
+    <h1>Science Days Kostenrechner</h1>
+    <p class="lede">Anzahl der Klassen und Schüler eingeben. Der Rechner ermittelt Busse und Eintritte und zeigt, was jede Person zahlen muss.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-input">
+    <h2 id="h-input">Wer fährt mit?</h2>
+    <div class="inputs">
+      <div class="field">
+        <label for="klassen">Klassen</label>
+        <input id="klassen" type="number" min="0" step="1" inputmode="numeric" value="4">
+        <span class="hint">je 1 Eintritt</span>
+      </div>
+      <div class="field">
+        <label for="schueler">Schüler gesamt</label>
+        <input id="schueler" type="number" min="0" step="1" inputmode="numeric" value="92">
+        <span class="hint">alle Klassen zusammen</span>
+      </div>
+      <div class="field">
+        <label for="lehrer">Lehrkräfte gesamt</label>
+        <input id="lehrer" type="number" min="0" step="1" inputmode="numeric" value="8">
+        <span class="hint" id="lehrer-hint">automatisch: 2 pro Klasse</span>
+      </div>
+    </div>
+    <label class="toggle" for="lehrerZahlen">
+      <input id="lehrerZahlen" type="checkbox">
+      <span>Lehrkräfte zahlen ihren Anteil mit. Sonst werden alle Kosten nur auf die Schüler verteilt.</span>
+    </label>
+
+    <details id="preise-details">
+      <summary>Preise und Bedingungen anpassen</summary>
+      <div class="prices">
+        <div class="field">
+          <label for="busPreis">Preis pro Bus (€)</label>
+          <input id="busPreis" type="number" min="0" step="1" value="550">
+        </div>
+        <div class="field">
+          <label for="busPlaetze">Plätze pro Bus</label>
+          <input id="busPlaetze" type="number" min="1" step="1" value="50">
+        </div>
+        <div class="field">
+          <label for="eintrittPreis">Eintritt pro Klasse (€)</label>
+          <input id="eintrittPreis" type="number" min="0" step="1" value="150">
+        </div>
+        <div class="field">
+          <label for="eintrittMax">Max. Personen pro Eintritt</label>
+          <input id="eintrittMax" type="number" min="1" step="1" value="30">
+          <span class="hint">Lehrkräfte zählen mit</span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="result" aria-live="polite" aria-labelledby="h-result">
+    <h2 id="h-result" class="headline">
+      <span class="label" id="perLabel">Kosten pro Schüler</span>
+      <span class="big" id="perHead">–</span>
+      <span class="sub" id="perSub"></span>
+    </h2>
+
+    <div class="warn" id="warn" hidden></div>
+
+    <table>
+      <tbody>
+        <tr>
+          <td>Busse<span class="calc" id="busCalc"></span></td>
+          <td class="num" id="busCost"></td>
+        </tr>
+        <tr>
+          <td>Eintritt<span class="calc" id="tixCalc"></span></td>
+          <td class="num" id="tixCost"></td>
+        </tr>
+        <tr class="total">
+          <td>Gesamtkosten</td>
+          <td class="num" id="total"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="collect" id="collect"></div>
+    <p class="tip" id="tip" hidden></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-bus">
+    <h2 id="h-bus">Sitzplätze in den Bussen</h2>
+    <div class="legend">
+      <span><i style="background:var(--bus)"></i>Schüler</span>
+      <span><i style="background:var(--accent)"></i>Lehrkräfte</span>
+      <span><i style="background:var(--seat-empty)"></i>frei</span>
+    </div>
+    <div class="buses" id="buses"></div>
+  </section>
+
+  <footer>Alle Beträge in Euro. Busse und Eintritte werden immer auf ganze Einheiten aufgerundet.</footer>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+  const int = (id, min) => {
+    const v = Math.floor(Number($(id).value));
+    return Number.isFinite(v) ? Math.max(min, v) : min;
+  };
+
+  let lehrerAuto = true;
+
+  function syncLehrer() {
+    if (lehrerAuto) $("lehrer").value = int("klassen", 0) * 2;
+    $("lehrer-hint").innerHTML = lehrerAuto
+      ? "automatisch: 2 pro Klasse"
+      : 'manuell · <button type="button" id="lehrer-reset">2 pro Klasse</button>';
+    const reset = $("lehrer-reset");
+    if (reset) reset.addEventListener("click", () => { lehrerAuto = true; update(); });
+  }
+
+  // Reine Berechnung, ohne DOM
+  function calc(p) {
+    const personen = p.schueler + p.lehrer;
+    const busse = personen > 0 ? Math.ceil(personen / p.busPlaetze) : 0;
+    const noetigeEintritte = personen > 0 ? Math.ceil(personen / p.eintrittMax) : 0;
+    const eintritte = Math.max(p.klassen, noetigeEintritte);
+    const busKosten = busse * p.busPreis;
+    const eintrittKosten = eintritte * p.eintrittPreis;
+    const gesamt = busKosten + eintrittKosten;
+    const zahler = p.lehrerZahlen ? personen : p.schueler;
+    const proKopf = zahler > 0 ? gesamt / zahler : null;
+    const freiePlaetze = busse * p.busPlaetze - personen;
+    const ueberGrenze = busse > 1 ? personen - (busse - 1) * p.busPlaetze : null;
+    return { personen, busse, noetigeEintritte, eintritte, busKosten, eintrittKosten, gesamt, zahler, proKopf, freiePlaetze, ueberGrenze };
+  }
+
+  function renderBuses(p, r) {
+    const host = $("buses");
+    host.innerHTML = "";
+    let s = p.schueler, t = p.lehrer;
+    for (let b = 0; b < r.busse; b++) {
+      // gleichmäßig verteilen: jeder Bus bekommt seinen Anteil
+      const left = r.busse - b;
+      const tb = Math.ceil(t / left);
+      const sb = Math.min(p.busPlaetze - tb, Math.ceil(s / left));
+      t -= tb; s -= sb;
+      const bus = document.createElement("div");
+      bus.className = "bus";
+      bus.innerHTML = `<div class="bus-head"><b>Bus ${b + 1}</b><span>${sb + tb} / ${p.busPlaetze}</span></div>`;
+      const grid = document.createElement("div");
+      grid.className = "seats";
+      grid.setAttribute("role", "img");
+      grid.setAttribute("aria-label", `Bus ${b + 1}: ${sb} Schüler, ${tb} Lehrkräfte, ${p.busPlaetze - sb - tb} Plätze frei`);
+      let html = "";
+      for (let i = 0; i < p.busPlaetze; i++) {
+        html += `<div class="seat${i < tb ? " t" : i < tb + sb ? " s" : ""}"></div>`;
+      }
+      grid.innerHTML = html;
+      bus.appendChild(grid);
+      host.appendChild(bus);
+    }
+    if (r.busse === 0) host.innerHTML = '<p class="hint">Noch niemand eingetragen.</p>';
+  }
+
+  function update() {
+    syncLehrer();
+    const p = {
+      klassen: int("klassen", 0),
+      schueler: int("schueler", 0),
+      lehrer: int("lehrer", 0),
+      busPreis: Math.max(0, Number($("busPreis").value) || 0),
+      busPlaetze: int("busPlaetze", 1),
+      eintrittPreis: Math.max(0, Number($("eintrittPreis").value) || 0),
+      eintrittMax: int("eintrittMax", 1),
+      lehrerZahlen: $("lehrerZahlen").checked,
+    };
+    const r = calc(p);
+
+    $("perLabel").textContent = p.lehrerZahlen ? "Kosten pro Person" : "Kosten pro Schüler";
+    $("perHead").textContent = r.proKopf === null ? "–" : eur.format(r.proKopf);
+    $("perSub").textContent = r.proKopf === null
+      ? "Bitte die Anzahl der Schüler eingeben."
+      : `${eur.format(r.gesamt)} geteilt durch ${r.zahler} ${p.lehrerZahlen ? "Personen" : "Schüler"}` +
+        (p.lehrerZahlen ? "" : " · Lehrkräfte fahren kostenlos mit");
+
+    $("busCalc").textContent = `${r.personen} Personen ÷ ${p.busPlaetze} Plätze → ${r.busse} × ${eur.format(p.busPreis)}`;
+    $("busCost").textContent = eur.format(r.busKosten);
+    $("tixCalc").textContent = `${r.eintritte} × ${eur.format(p.eintrittPreis)}` +
+      (r.eintritte > p.klassen ? ` (statt ${p.klassen}, siehe Hinweis)` : "");
+    $("tixCost").textContent = eur.format(r.eintrittKosten);
+    $("total").textContent = eur.format(r.gesamt);
+
+    // Hinweis: zu viele Personen für die Anzahl Eintritte
+    const warn = $("warn");
+    if (r.noetigeEintritte > p.klassen) {
+      warn.hidden = false;
+      warn.textContent = `${r.personen} Personen (inkl. Lehrkräfte) passen nicht in ${p.klassen} ${p.klassen === 1 ? "Eintritt" : "Eintritte"} à max. ${p.eintrittMax} Personen. ` +
+        `Gerechnet wird deshalb mit ${r.noetigeEintritte} Eintritten.`;
+    } else {
+      warn.hidden = true;
+    }
+
+    // Vorschlag zum Einsammeln: auf volle Euro aufrunden
+    const collect = $("collect");
+    if (r.proKopf !== null && r.gesamt > 0) {
+      const rund = Math.ceil(r.proKopf - 1e-9);
+      const puffer = rund * r.zahler - r.gesamt;
+      collect.innerHTML = `<span>Zum Einsammeln aufgerundet:</span> <strong>${eur.format(rund)}</strong>` +
+        `<span class="muted">pro ${p.lehrerZahlen ? "Person" : "Schüler"} · Puffer insgesamt ${eur.format(puffer)}</span>`;
+      collect.hidden = false;
+    } else {
+      collect.hidden = true;
+    }
+
+    // Tipp: knapp über einer Busgrenze
+    const tip = $("tip");
+    if (r.ueberGrenze !== null && r.ueberGrenze <= 5) {
+      tip.hidden = false;
+      tip.textContent = `Nur ${r.ueberGrenze} ${r.ueberGrenze === 1 ? "Person" : "Personen"} über ${(r.busse - 1) * p.busPlaetze} Plätzen: ` +
+        `Mit ${r.ueberGrenze} ${r.ueberGrenze === 1 ? "Person" : "Personen"} weniger reicht ein Bus weniger und ihr spart ${eur.format(p.busPreis)}.`;
+    } else if (r.busse > 0 && r.freiePlaetze > 0) {
+      tip.hidden = false;
+      tip.textContent = `Im letzten Bus sind noch ${r.freiePlaetze} ${r.freiePlaetze === 1 ? "Platz" : "Plätze"} frei.`;
+    } else {
+      tip.hidden = true;
+    }
+
+    renderBuses(p, r);
+  }
+
+  $("lehrer").addEventListener("input", () => { lehrerAuto = false; update(); });
+  ["klassen", "schueler", "busPreis", "busPlaetze", "eintrittPreis", "eintrittMax"].forEach((id) =>
+    $(id).addEventListener("input", update));
+  $("lehrerZahlen").addEventListener("change", update);
+
+  update();
+})();
+</script>

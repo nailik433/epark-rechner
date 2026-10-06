@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Berechnet Busse, Eintritte und die Kosten pro Schüler für die Science Days.">
 <title>Science Days Kostenrechner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +44,8 @@
   }
 
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; }
   body {
     background: var(--bg);
     color: var(--ink);
@@ -163,7 +171,8 @@
     .seat { transition: background-color .2s ease; }
   }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header>
     <span class="eyebrow">Klassenfahrt · Kostenaufteilung</span>
@@ -400,3 +409,5 @@
   update();
 })();
 </script>
+</body>
+</html>

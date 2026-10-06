@@ -87,7 +87,7 @@
   }
 
   .inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-  @media (max-width: 560px) { .inputs { grid-template-columns: 1fr 1fr; } .inputs .field:last-child { grid-column: 1 / -1; } }
+  @media (max-width: 560px) { .inputs { grid-template-columns: 1fr; } }
   .field { display: grid; gap: .3rem; min-width: 0; align-content: start; }
   .field label { font-weight: 700; font-size: .92rem; }
   .field .hint { font-size: .8rem; color: var(--muted); min-height: 1.2em; }
@@ -103,6 +103,19 @@
     border: 1.5px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--ink);
   }
+  .stepper { display: flex; gap: .4rem; align-items: stretch; min-width: 0; }
+  .stepper input[type="number"] { flex: 1; min-width: 0; text-align: center; padding-inline: .3rem; -moz-appearance: textfield; }
+  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .step {
+    flex: none; width: 2.9rem;
+    font-family: var(--font-data); font-weight: 600; font-size: 1.5rem; line-height: 1;
+    border: 1.5px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--accent);
+    cursor: pointer; touch-action: manipulation; user-select: none;
+  }
+  .step:hover { background: var(--accent-soft); }
+  .step:active { background: var(--accent); color: var(--surface); }
+  .step:disabled { color: var(--muted); opacity: .45; cursor: default; background: var(--surface); }
   input[type="number"]:focus-visible, button:focus-visible, summary:focus-visible, input[type="checkbox"]:focus-visible {
     outline: 3px solid var(--accent); outline-offset: 2px;
   }
@@ -185,17 +198,29 @@
     <div class="inputs">
       <div class="field">
         <label for="klassen">Klassen</label>
-        <input id="klassen" type="number" min="0" step="1" inputmode="numeric" value="4">
+        <div class="stepper">
+          <button type="button" class="step" data-target="klassen" data-step="-1" aria-label="Klassen: eins weniger">−</button>
+          <input id="klassen" type="number" min="0" step="1" inputmode="numeric" value="4">
+          <button type="button" class="step" data-target="klassen" data-step="1" aria-label="Klassen: eins mehr">+</button>
+        </div>
         <span class="hint">je 1 Eintritt</span>
       </div>
       <div class="field">
         <label for="schueler">Schüler gesamt</label>
-        <input id="schueler" type="number" min="0" step="1" inputmode="numeric" value="92">
+        <div class="stepper">
+          <button type="button" class="step" data-target="schueler" data-step="-1" aria-label="Schüler: eins weniger">−</button>
+          <input id="schueler" type="number" min="0" step="1" inputmode="numeric" value="92">
+          <button type="button" class="step" data-target="schueler" data-step="1" aria-label="Schüler: eins mehr">+</button>
+        </div>
         <span class="hint">alle Klassen zusammen</span>
       </div>
       <div class="field">
         <label for="lehrer">Lehrkräfte gesamt</label>
-        <input id="lehrer" type="number" min="0" step="1" inputmode="numeric" value="8">
+        <div class="stepper">
+          <button type="button" class="step" data-target="lehrer" data-step="-1" aria-label="Lehrkräfte: eins weniger">−</button>
+          <input id="lehrer" type="number" min="0" step="1" inputmode="numeric" value="8">
+          <button type="button" class="step" data-target="lehrer" data-step="1" aria-label="Lehrkräfte: eins mehr">+</button>
+        </div>
         <span class="hint" id="lehrer-hint">automatisch: 2 pro Klasse</span>
       </div>
     </div>
@@ -399,9 +424,18 @@
     }
 
     renderBuses(p, r);
+    document.querySelectorAll('.step[data-step="-1"]').forEach((btn) => {
+      btn.disabled = int(btn.dataset.target, 0) <= 0;
+    });
   }
 
   $("lehrer").addEventListener("input", () => { lehrerAuto = false; update(); });
+  document.querySelectorAll(".step").forEach((btn) => btn.addEventListener("click", () => {
+    const id = btn.dataset.target;
+    $(id).value = Math.max(0, int(id, 0) + Number(btn.dataset.step));
+    if (id === "lehrer") lehrerAuto = false;
+    update();
+  }));
   ["klassen", "schueler", "busPreis", "busPlaetze", "eintrittPreis", "eintrittMax"].forEach((id) =>
     $(id).addEventListener("input", update));
   $("lehrerZahlen").addEventListener("change", update);

@@ -144,6 +144,8 @@
   }
   .headline .sub { color: var(--muted); font-size: .92rem; }
 
+  .teacher-line { margin: 0; font-size: .95rem; }
+  .teacher-line strong { font-family: var(--font-data); font-size: 1.15rem; color: var(--accent); }
   .warn {
     background: var(--warn-bg); color: var(--warn-ink);
     border-radius: 10px; padding: .7rem .9rem; font-size: .92rem;
@@ -158,11 +160,12 @@
   .split-title { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: -.6rem; }
 
   .collect {
-    display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: baseline;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem 1rem; align-items: baseline;
     border-top: 1px dashed var(--line); padding-top: .9rem; font-size: .92rem;
   }
-  .collect strong { font-family: var(--font-data); font-size: 1.1rem; }
-  .collect .muted { color: var(--muted); }
+  .collect .head { grid-column: 1 / -1; font-weight: 700; }
+  .collect strong { font-family: var(--font-data); font-size: 1.1rem; text-align: right; font-variant-numeric: tabular-nums; }
+  .collect .muted { color: var(--muted); grid-column: 1 / -1; }
 
   /* Sitzplan */
   .buses { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
@@ -228,7 +231,7 @@
     </div>
     <label class="toggle" for="lehrerFrei">
       <input id="lehrerFrei" type="checkbox">
-      <span>Lehrkräfte zahlen nichts. Ihr Anteil wird zusätzlich auf die Schüler umgelegt (zum Beispiel, wenn die Schule die Lehrerkosten nicht übernimmt).</span>
+      <span>Lehrkräfte zahlen gar nichts. Ihr Busanteil wird zusätzlich auf die Schüler umgelegt.</span>
     </label>
 
     <details id="preise-details">
@@ -249,12 +252,12 @@
         <div class="field">
           <label for="eintrittMax">Max. Personen pro Eintritt</label>
           <input id="eintrittMax" type="number" min="1" step="1" value="30">
-          <span class="hint">Lehrkräfte zählen mit</span>
+          <span class="hint">Lehrkräfte zählen mit, zahlen aber keinen Eintritt</span>
         </div>
         <div class="field">
           <label for="freiProBus">Freiplätze für Lehrkräfte pro Bus</label>
-          <input id="freiProBus" type="number" min="0" step="1" value="1">
-          <span class="hint">diese Lehrkräfte zahlen nichts</span>
+          <input id="freiProBus" type="number" min="0" step="1" value="2">
+          <span class="hint">diese Lehrkräfte zahlen keinen Busanteil</span>
         </div>
       </div>
     </details>
@@ -266,6 +269,7 @@
       <span class="big" id="perHead">–</span>
       <span class="sub" id="perSub"></span>
     </h2>
+    <p class="teacher-line" id="perTeacher"></p>
 
     <div class="warn" id="warn" hidden></div>
 
@@ -351,16 +355,19 @@
     const busKosten = busse * p.busPreis;
     const eintrittKosten = eintritte * p.eintrittPreis;
     const gesamt = busKosten + eintrittKosten;
-    // Pro Bus fahren bis zu freiProBus Lehrkräfte kostenlos mit (kein Bus-, kein Eintrittsanteil)
+    // Eintritt: Lehrkräfte sind frei, die Eintrittskosten tragen nur die Schüler.
+    // Bus: bis zu freiProBus Lehrkräfte pro Bus fahren gratis, den Rest teilen
+    // Schüler und übrige Lehrkräfte (bei lehrerFrei nur die Schüler).
     const freiLehrer = Math.min(p.lehrer, busse * p.freiProBus);
     const zahlendeLehrer = p.lehrer - freiLehrer;
-    // lehrerFrei: alle Lehrkräfte zahlen nichts, ihr Anteil geht auf die Schüler
-    const zahler = p.schueler + (p.lehrerFrei ? 0 : zahlendeLehrer);
-    const proKopf = p.schueler > 0 ? gesamt / zahler : null;
-    const proLehrer = p.lehrerFrei || proKopf === null ? 0 : proKopf;
+    const busZahler = p.schueler + (p.lehrerFrei ? 0 : zahlendeLehrer);
+    const busProKopf = p.schueler > 0 ? busKosten / busZahler : null;
+    const eintrittProSchueler = p.schueler > 0 ? eintrittKosten / p.schueler : null;
+    const proKopf = p.schueler > 0 ? busProKopf + eintrittProSchueler : null;
+    const proLehrer = p.lehrerFrei || busProKopf === null ? 0 : busProKopf;
     const freiePlaetze = busse * p.busPlaetze - personen;
     const ueberGrenze = busse > 1 ? personen - (busse - 1) * p.busPlaetze : null;
-    return { personen, busse, noetigeEintritte, eintritte, busKosten, eintrittKosten, gesamt, freiLehrer, zahlendeLehrer, zahler, proKopf, proLehrer, freiePlaetze, ueberGrenze };
+    return { personen, busse, noetigeEintritte, eintritte, busKosten, eintrittKosten, gesamt, freiLehrer, zahlendeLehrer, busZahler, busProKopf, eintrittProSchueler, proKopf, proLehrer, freiePlaetze, ueberGrenze };
   }
 
   function renderBuses(p, r) {
@@ -411,8 +418,14 @@
     $("perHead").textContent = r.proKopf === null ? "–" : eur.format(r.proKopf);
     $("perSub").textContent = r.proKopf === null
       ? "Bitte die Anzahl der Schüler eingeben."
-      : `${eur.format(r.gesamt)} geteilt durch ${r.zahler} zahlende Personen` +
-        (p.lehrerFrei ? " (nur Schüler)" : ` (${p.schueler} Schüler + ${r.zahlendeLehrer} Lehrkräfte)`);
+      : `Bus ${eur.format(r.busProKopf)} + Eintritt ${eur.format(r.eintrittProSchueler)}`;
+    const perTeacher = $("perTeacher");
+    perTeacher.hidden = r.proKopf === null || p.lehrer === 0;
+    perTeacher.innerHTML = p.lehrerFrei
+      ? "Lehrkräfte zahlen nichts."
+      : r.zahlendeLehrer === 0
+        ? "Alle Lehrkräfte fahren mit Freiplatz und zahlen nichts."
+        : `Pro Lehrkraft ohne Freiplatz: <strong>${eur.format(r.proLehrer)}</strong> (nur Busanteil, Eintritt frei)`;
 
     $("busCalc").textContent = `${r.personen} Personen ÷ ${p.busPlaetze} Plätze → ${r.busse} × ${eur.format(p.busPreis)}`;
     $("busCost").textContent = eur.format(r.busKosten);
@@ -423,13 +436,13 @@
 
     // Wer zahlt was
     const pk = r.proKopf ?? 0;
-    $("sCalc").textContent = `${p.schueler} × ${eur.format(pk)}`;
+    $("sCalc").textContent = `${p.schueler} × ${eur.format(pk)} · Bus ${eur.format(r.busKosten)} ÷ ${r.busZahler || 0} zahlende Mitfahrer, Eintritt ${eur.format(r.eintrittKosten)} ÷ ${p.schueler} Schüler`;
     $("sCost").textContent = eur.format(p.schueler * pk);
     $("tCalc").textContent = p.lehrerFrei
-      ? `${r.zahlendeLehrer} × ${eur.format(0)} · auf die Schüler umgelegt`
-      : `${r.zahlendeLehrer} × ${eur.format(r.proLehrer)}`;
+      ? `${r.zahlendeLehrer} × ${eur.format(0)} · Busanteil auf die Schüler umgelegt`
+      : `${r.zahlendeLehrer} × ${eur.format(r.proLehrer)} · nur Bus, Eintritt frei`;
     $("tCost").textContent = eur.format(r.zahlendeLehrer * r.proLehrer);
-    $("fCalc").textContent = `${r.freiLehrer} × ${eur.format(0)} · ${p.freiProBus} pro Bus bei ${r.busse} ${r.busse === 1 ? "Bus" : "Bussen"}`;
+    $("fCalc").textContent = `${r.freiLehrer} × ${eur.format(0)} · ${p.freiProBus} Freiplätze pro Bus bei ${r.busse} ${r.busse === 1 ? "Bus" : "Bussen"}`;
     $("fCost").textContent = eur.format(0);
     $("tRow").hidden = r.zahlendeLehrer === 0;
     $("fRow").hidden = r.freiLehrer === 0;
@@ -447,10 +460,14 @@
     // Vorschlag zum Einsammeln: auf volle Euro aufrunden
     const collect = $("collect");
     if (r.proKopf !== null && r.gesamt > 0) {
-      const rund = Math.ceil(r.proKopf - 1e-9);
-      const puffer = rund * r.zahler - r.gesamt;
-      collect.innerHTML = `<span>Zum Einsammeln aufgerundet:</span> <strong>${eur.format(rund)}</strong>` +
-        `<span class="muted">pro Schüler${!p.lehrerFrei && r.zahlendeLehrer > 0 ? " und zahlende Lehrkraft" : ""} · Puffer insgesamt ${eur.format(puffer)}</span>`;
+      const rundS = Math.ceil(r.proKopf - 1e-9);
+      const rundL = Math.ceil(r.proLehrer - 1e-9);
+      const lehrerZahlen = r.zahlendeLehrer > 0 && r.proLehrer > 0;
+      const puffer = rundS * p.schueler + (lehrerZahlen ? rundL * r.zahlendeLehrer : 0) - r.gesamt;
+      collect.innerHTML = `<span class="head">Zum Einsammeln, auf volle Euro aufgerundet</span>` +
+        `<span>pro Schüler</span><strong>${eur.format(rundS)}</strong>` +
+        (lehrerZahlen ? `<span>pro Lehrkraft ohne Freiplatz</span><strong>${eur.format(rundL)}</strong>` : "") +
+        `<span class="muted">Puffer insgesamt ${eur.format(puffer)}</span>`;
       collect.hidden = false;
     } else {
       collect.hidden = true;

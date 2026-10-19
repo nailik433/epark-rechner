@@ -257,7 +257,7 @@
         <div class="field">
           <label for="freiProBus">Freiplätze für Lehrkräfte pro Bus</label>
           <input id="freiProBus" type="number" min="0" step="1" value="1">
-          <span class="hint">diese Lehrkräfte zahlen keinen Busanteil</span>
+          <span class="hint">senkt den Busanteil aller Lehrkräfte</span>
         </div>
       </div>
     </details>
@@ -298,12 +298,8 @@
           <td class="num" id="sCost"></td>
         </tr>
         <tr id="tRow">
-          <td>Lehrkräfte ohne Freiplatz<span class="calc" id="tCalc"></span></td>
+          <td>Lehrkräfte<span class="calc" id="tCalc"></span></td>
           <td class="num" id="tCost"></td>
-        </tr>
-        <tr id="fRow">
-          <td>Lehrkräfte mit Freiplatz<span class="calc" id="fCalc"></span></td>
-          <td class="num" id="fCost"></td>
         </tr>
       </tbody>
     </table>
@@ -316,8 +312,8 @@
     <h2 id="h-bus">Sitzplätze in den Bussen</h2>
     <div class="legend">
       <span><i style="background:var(--bus)"></i>Schüler</span>
-      <span><i style="background:var(--accent)"></i>Lehrkraft ohne Freiplatz</span>
-      <span><i style="background:var(--surface);box-shadow:inset 0 0 0 2px var(--accent)"></i>Lehrkraft mit Freiplatz</span>
+      <span><i style="background:var(--accent)"></i>Lehrkräfte</span>
+      <span><i style="background:var(--surface);box-shadow:inset 0 0 0 2px var(--accent)"></i>Lehrkräfte-Freiplatz</span>
       <span><i style="background:var(--seat-empty)"></i>frei</span>
     </div>
     <div class="buses" id="buses"></div>
@@ -359,15 +355,17 @@
     // Bus: bis zu freiProBus Lehrkräfte pro Bus fahren gratis, den Rest teilen
     // Schüler und übrige Lehrkräfte (bei lehrerFrei nur die Schüler).
     const freiLehrer = Math.min(p.lehrer, busse * p.freiProBus);
-    const zahlendeLehrer = p.lehrer - freiLehrer;
+    const zahlendeLehrer = p.lehrer - freiLehrer; // Busplätze, für die Lehrkräfte zahlen
     const busZahler = p.schueler + (p.lehrerFrei ? 0 : zahlendeLehrer);
     const busProKopf = p.schueler > 0 ? busKosten / busZahler : null;
     const eintrittProSchueler = p.schueler > 0 ? eintrittKosten / p.schueler : null;
     const proKopf = p.schueler > 0 ? busProKopf + eintrittProSchueler : null;
-    const proLehrer = p.lehrerFrei || busProKopf === null ? 0 : busProKopf;
+    // Die Freiplätze kommen allen Lehrkräften gleichmäßig zugute
+    const lehrerGesamt = p.lehrerFrei || busProKopf === null ? 0 : zahlendeLehrer * busProKopf;
+    const proLehrer = p.lehrer > 0 ? lehrerGesamt / p.lehrer : 0;
     const freiePlaetze = busse * p.busPlaetze - personen;
     const ueberGrenze = busse > 1 ? personen - (busse - 1) * p.busPlaetze : null;
-    return { personen, busse, noetigeEintritte, eintritte, busKosten, eintrittKosten, gesamt, freiLehrer, zahlendeLehrer, busZahler, busProKopf, eintrittProSchueler, proKopf, proLehrer, freiePlaetze, ueberGrenze };
+    return { personen, busse, noetigeEintritte, eintritte, busKosten, eintrittKosten, gesamt, freiLehrer, zahlendeLehrer, busZahler, busProKopf, eintrittProSchueler, proKopf, lehrerGesamt, proLehrer, freiePlaetze, ueberGrenze };
   }
 
   function renderBuses(p, r) {
@@ -424,8 +422,8 @@
     perTeacher.innerHTML = p.lehrerFrei
       ? "Lehrkräfte zahlen nichts."
       : r.zahlendeLehrer === 0
-        ? "Alle Lehrkräfte fahren mit Freiplatz und zahlen nichts."
-        : `Pro Lehrkraft ohne Freiplatz: <strong>${eur.format(r.proLehrer)}</strong> (nur Busanteil, Eintritt frei)`;
+        ? "Die Freiplätze reichen für alle Lehrkräfte. Sie zahlen nichts."
+        : `Pro Lehrkraft: <strong>${eur.format(r.proLehrer)}</strong> (Busanteil abzüglich Freiplätze, Eintritt frei)`;
 
     $("busCalc").textContent = `${r.personen} Personen ÷ ${p.busPlaetze} Plätze → ${r.busse} × ${eur.format(p.busPreis)}`;
     $("busCost").textContent = eur.format(r.busKosten);
@@ -438,14 +436,13 @@
     const pk = r.proKopf ?? 0;
     $("sCalc").textContent = `${p.schueler} × ${eur.format(pk)} · Bus ${eur.format(r.busKosten)} ÷ ${r.busZahler || 0} zahlende Mitfahrer, Eintritt ${eur.format(r.eintrittKosten)} ÷ ${p.schueler} Schüler`;
     $("sCost").textContent = eur.format(p.schueler * pk);
+    const frei = `${r.freiLehrer} ${r.freiLehrer === 1 ? "Freiplatz" : "Freiplätze"}`;
     $("tCalc").textContent = p.lehrerFrei
-      ? `${r.zahlendeLehrer} × ${eur.format(0)} · Busanteil auf die Schüler umgelegt`
-      : `${r.zahlendeLehrer} × ${eur.format(r.proLehrer)} · nur Bus, Eintritt frei`;
-    $("tCost").textContent = eur.format(r.zahlendeLehrer * r.proLehrer);
-    $("fCalc").textContent = `${r.freiLehrer} × ${eur.format(0)} · ${p.freiProBus} ${p.freiProBus === 1 ? "Freiplatz" : "Freiplätze"} pro Bus bei ${r.busse} ${r.busse === 1 ? "Bus" : "Bussen"}`;
-    $("fCost").textContent = eur.format(0);
-    $("tRow").hidden = r.zahlendeLehrer === 0;
-    $("fRow").hidden = r.freiLehrer === 0;
+      ? `${p.lehrer} × ${eur.format(0)} · Busanteil auf die Schüler umgelegt`
+      : `${p.lehrer} × ${eur.format(r.proLehrer)} · Busanteil für ${r.zahlendeLehrer} von ${p.lehrer} Plätzen ` +
+        `(${frei}, ${p.freiProBus} pro Bus), auf alle Lehrkräfte verteilt; Eintritt frei`;
+    $("tCost").textContent = eur.format(r.lehrerGesamt);
+    $("tRow").hidden = p.lehrer === 0;
 
     // Hinweis: zu viele Personen für die Anzahl Eintritte
     const warn = $("warn");
@@ -462,11 +459,11 @@
     if (r.proKopf !== null && r.gesamt > 0) {
       const rundS = Math.ceil(r.proKopf - 1e-9);
       const rundL = Math.ceil(r.proLehrer - 1e-9);
-      const lehrerZahlen = r.zahlendeLehrer > 0 && r.proLehrer > 0;
-      const puffer = rundS * p.schueler + (lehrerZahlen ? rundL * r.zahlendeLehrer : 0) - r.gesamt;
+      const lehrerZahlen = r.proLehrer > 0;
+      const puffer = rundS * p.schueler + (lehrerZahlen ? rundL * p.lehrer : 0) - r.gesamt;
       collect.innerHTML = `<span class="head">Zum Einsammeln, auf volle Euro aufgerundet</span>` +
         `<span>pro Schüler</span><strong>${eur.format(rundS)}</strong>` +
-        (lehrerZahlen ? `<span>pro Lehrkraft ohne Freiplatz</span><strong>${eur.format(rundL)}</strong>` : "") +
+        (lehrerZahlen ? `<span>pro Lehrkraft</span><strong>${eur.format(rundL)}</strong>` : "") +
         `<span class="muted">Puffer insgesamt ${eur.format(puffer)}</span>`;
       collect.hidden = false;
     } else {
